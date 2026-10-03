@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>我的待辦清單</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px 16px;
+      background: #f3f5f8;
+      color: #1f2937;
+      font-family: system-ui, sans-serif;
+    }
+
+    main {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 24px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px #0000000d;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 26px;
+    }
+
+    .description {
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    form {
+      display: flex;
+      gap: 8px;
+      margin: 24px 0;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font: inherit;
+      font-size: 16px;
+    }
+
+    button {
+      min-height: 44px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    input:focus-visible,
+    button:focus-visible {
+      outline: 3px solid #93c5fd;
+      outline-offset: 2px;
+    }
+
+    ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    li label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      cursor: pointer;
+    }
+
+    input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .task-text {
+      overflow-wrap: anywhere;
+    }
+
+    .done .task-text {
+      color: #94a3b8;
+      text-decoration: line-through;
+    }
+
+    .delete {
+      flex-shrink: 0;
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    #empty,
+    #count {
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    #notice {
+      color: #b91c1c;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 380px) {
+      main {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>我的待辦清單</h1>
+    <p class="description">
+      記下今天要做的事，完成後打個勾。
+    </p>
+
+    <form id="todo-form">
+      <input
+        id="todo-input"
+        type="text"
+        aria-label="待辦事項"
+        placeholder="例如：買牛奶"
+        maxlength="120"
+        required
+      >
+      <button type="submit">新增</button>
+    </form>
+
+    <p id="notice" role="status" hidden></p>
+    <p id="empty">目前沒有待辦事項，新增第一件事吧！</p>
+    <ul id="todo-list" aria-label="待辦清單"></ul>
+    <p id="count" aria-live="polite"></p>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "my-todo-items-v1";
+
+    const form = document.querySelector("#todo-form");
+    const input = document.querySelector("#todo-input");
+    const list = document.querySelector("#todo-list");
+    const empty = document.querySelector("#empty");
+    const count = document.querySelector("#count");
+    const notice = document.querySelector("#notice");
+
+    let todos = [];
+
+    function showNotice(message) {
+      notice.textContent = message;
+      notice.hidden = false;
+    }
+
+    // 開啟網頁時，讀取之前保存的資料。
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+
+      if (saved) {
+        const parsed = JSON.parse(saved);
+
+        if (
+          !Array.isArray(parsed) ||
+          !parsed.every(item =>
+            item &&
+            typeof item.id === "string" &&
+            typeof item.text === "string" &&
+            typeof item.done === "boolean"
+          )
+        ) {
+          throw new Error("資料格式不正確");
+        }
+
+        todos = parsed;
+      }
+    } catch (error) {
+      showNotice("無法讀取已保存的清單，請確認瀏覽器允許網站儲存資料。");
+    }
+
+    // 每次修改清單後，保存並更新畫面。
+    function saveAndRender() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+        notice.hidden = true;
+      } catch (error) {
+        showNotice("目前無法保存資料，關閉網頁後這次的修改可能會遺失。");
+      }
+
+      render();
+    }
+
+    function render() {
+      list.replaceChildren();
+
+      for (const todo of todos) {
+        const row = document.createElement("li");
+        row.classList.toggle("done", todo.done);
+
+        const label = document.createElement("label");
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = todo.done;
+
+        checkbox.addEventListener("change", () => {
+          todo.done = checkbox.checked;
+          saveAndRender();
+        });
+
+        const text = document.createElement("span");
+        text.className = "task-text";
+        text.textContent = todo.text;
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "delete";
+        deleteButton.textContent = "刪除";
+        deleteButton.setAttribute("aria-label", `刪除：${todo.text}`);
+
+        deleteButton.addEventListener("click", () => {
+          todos = todos.filter(item => item.id !== todo.id);
+          saveAndRender();
+        });
+
+        label.append(checkbox, text);
+        row.append(label, deleteButton);
+        list.append(row);
+      }
+
+      empty.hidden = todos.length > 0;
+
+      const remaining = todos.filter(todo => !todo.done).length;
+      count.textContent = `共 ${todos.length} 件，還有 ${remaining} 件未完成`;
+    }
+
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+
+      const text = input.value.trim();
+      if (!text) return;
+
+      todos.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+        text,
+        done: false
+      });
+
+      input.value = "";
+      saveAndRender();
+      input.focus();
+    });
+
+    render();
+  </script>
+</body>
+</html>
